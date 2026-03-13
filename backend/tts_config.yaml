@@ -1,0 +1,78 @@
+# TTS 语音合成配置文件
+# 支持两种模型：cosyvoice 和 qwen-tts
+
+# 当前使用的 TTS 提供商：cosyvoice 或 qwen-tts
+provider: qwen-tts
+
+# =============================================================================
+# CosyVoice 配置（阿里云 DashScope）
+# 文档: https://help.aliyun.com/zh/model-studio/realtime-speech-synthesis-cosyvoice
+# =============================================================================
+cosyvoice:
+  # 模型选择：
+  # - cosyvoice-v3-flash: 推荐，支持系统音色
+  # - cosyvoice-v3.5-flash: 需要自定义/复刻音色
+  model: cosyvoice-v3-flash
+
+  # 音色（cosyvoice-v3-flash 可用系统音色）:
+  # - longanyang: 龙安阳（男声，专业播音）
+  # - longxiaochun: 龙小淳（女声，温柔自然）
+  # - longyue: 龙悦（女声，甜美活泼）
+  # - longfei: 龙飞（男声，磁性低沉）
+  # 更多音色见文档
+  voice: longanyang
+
+# =============================================================================
+# Qwen TTS 配置（阿里云 DashScope）
+# 文档: https://help.aliyun.com/zh/model-studio/qwen-tts
+# =============================================================================
+qwen-tts:
+  # 模型选择：
+  # - qwen3-tts-flash: 推荐，低延迟，按字符计费
+  # - qwen3-tts-instruct-flash: 支持指令控制（语速、语调等）
+  # - qwen-tts: 原版，按 Token 计费
+  model: qwen3-tts-flash
+
+  # 音色列表（qwen3-tts-flash 可用）:
+  # - Cherry: 芊悦（女声，活泼自然）
+  # - Serena: 苏瑶（女声，温柔知性）
+  # - Ethan: 晨煦（男声，温暖阳光）
+  # - Chelsie: 千雪（女声，二次元风格）
+  # - Momo: 茉兔（女声，俏皮可爱）
+  # - Vivian: 十三（女声，元气少女）
+  # - Moon: 月白（男声，自信魅力）
+  # - Maia: 四月（女声，知性温柔）
+  # - Kai: 凯（男声，轻松自然）
+  # - Nofish: 不吃鱼（女声，无儿化音）
+  voice: Cherry
+
+  # 语言类型（可选）:
+  # - Auto: 自动识别（默认，适合多语言混合）
+  # - Chinese: 中文（单一语种时效果更好）
+  # - English: 英文
+  # - Japanese: 日语
+  # - Korean: 韩语
+  # - Spanish: 西班牙语
+  # - French: 法语
+  # - German: 德语
+  # - Italian: 意大利语
+  # - Portuguese: 葡萄牙语
+  # - Russian: 俄语
+  language_type: Auto
+
+  # 是否使用流式输出（true: 流式返回 base64，false: 返回 URL）
+  # 流式模式延迟更低，适合实时播放
+  stream: true
+
+  # ==========================================================================
+  # 指令控制（仅 qwen3-tts-instruct-flash 模型支持）
+  # 如需使用，请将上方 model 改为 qwen3-tts-instruct-flash
+  # ==========================================================================
+  # 语音风格指令（最长 1600 Token，仅支持中英文）
+  # 示例: "语速较快，带有明显的上扬语调，适合介绍时尚产品。"
+  # 示例: "用专业、自信的语气，像播音员一样播报。"
+  # 示例: "温柔亲切，像朋友聊天一样。"
+  # instructions: "语速适中，专业自信，适合面试场景。"
+
+  # 是否优化指令（推荐开启，可提升自然度和表现力）
+  # optimize_instructions: true
