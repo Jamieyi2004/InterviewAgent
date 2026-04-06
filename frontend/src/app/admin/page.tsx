@@ -22,7 +22,8 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 import { fetchAdminStats, fetchPersonas, fetchSkills, type AdminStats } from "@/lib/api";
-import { SidebarHeader, SidebarNavGroup, SidebarDivider, SidebarFooter } from "@/components/SidebarNav";
+import { SidebarHeader, AdminSidebarNavGroup, SidebarDivider, SidebarFooter } from "@/components/SidebarNav";
+import AdminGuard from "@/components/AdminGuard";
 import StatCard from "@/components/StatCard";
 import StatusBadge from "@/components/StatusBadge";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -76,12 +77,13 @@ export default function AdminPage() {
     : [];
 
   return (
+    <AdminGuard>
     <div className="flex h-screen">
       {/* 侧边栏 */}
       <aside className="flex w-[260px] flex-shrink-0 flex-col border-r border-black/5 bg-surface-sidebar">
         <SidebarHeader />
         <SidebarDivider />
-        <SidebarNavGroup currentPath="/admin" />
+        <AdminSidebarNavGroup currentPath="/admin" />
         <SidebarDivider />
 
         <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -328,5 +330,6 @@ export default function AdminPage() {
         </div>
       </main>
     </div>
+    </AdminGuard>
   );
 }

@@ -11,9 +11,11 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy import func, desc, asc
 from sqlalchemy.orm import Session
 
+from auth import get_current_user, verify_session_owner
 from models.database import get_db
 from models.interview import InterviewSession, Message, Report
 from models.resume import Resume
+from models.user import User
 from services.text_utils import extract_candidate_name
 
 router = APIRouter(prefix="/api/sessions", tags=["会话管理"])
@@ -31,8 +33,9 @@ def list_sessions(
     sort_by: str = Query("created_at", description="排序字段"),
     sort_order: str = Query("desc", description="asc / desc"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """获取面试会话列表（分页 + 筛选）"""
+    """获取当前用户的面试会话列表（分页 + 筛选）"""
     # 子查询：每个会话的消息数
     msg_count_sub = (
         db.query(Message.session_id, func.count(Message.id).label("msg_count"))
@@ -53,6 +56,9 @@ def list_sessions(
         .outerjoin(msg_count_sub, msg_count_sub.c.session_id == InterviewSession.id)
     )
 
+    # 数据隔离：只查当前用户的会话
+    query = query.filter(InterviewSession.user_id == current_user.id)
+
     # 筛选
     if status:
         query = query.filter(InterviewSession.status == status)
@@ -72,13 +78,11 @@ def list_sessions(
         except ValueError:
             pass
 
-    # 搜索候选人姓名（在内存中过滤，因为 parsed_json 是 TEXT 字段）
-    # 先获取总量和排序
     sort_col = getattr(InterviewSession, sort_by, InterviewSession.created_at)
     order_func = desc if sort_order == "desc" else asc
     query = query.order_by(order_func(sort_col))
 
-    # 如果有搜索条件，需要先查全部再过滤
+    # 搜索候选人姓名（内存过滤）
     if search:
         all_rows = query.all()
         filtered = [
@@ -121,12 +125,15 @@ def list_sessions(
 
 
 @router.get("/{session_id}/detail")
-def get_session_detail(session_id: int, db: Session = Depends(get_db)):
+def get_session_detail(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """获取会话详情：元数据 + 全部消息 + 报告摘要"""
-    session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+    verify_session_owner(session_id, current_user.id, db)
 
+    session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
     resume = db.query(Resume).filter(Resume.id == session.resume_id).first()
     candidate_name = extract_candidate_name(resume.parsed_json) if resume else "未知"
 

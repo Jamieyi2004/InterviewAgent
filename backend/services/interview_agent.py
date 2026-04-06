@@ -106,6 +106,7 @@ _active_agents: dict[int, InterviewAgent] = {}
 async def create_interview_session(
     resume_id: int, position: str, db: Session,
     persona_name: str = "",
+    user_id: int = None,
 ) -> int:
     """
     创建面试会话
@@ -128,6 +129,7 @@ async def create_interview_session(
     session = InterviewSession(
         resume_id=resume_id,
         position=position,
+        user_id=user_id,
     )
     db.add(session)
     db.commit()

@@ -13,7 +13,7 @@ from utils.pdf_utils import extract_text_from_pdf
 MAX_RESUME_CHARS_FOR_SUMMARY = 4000
 
 
-async def parse_resume(file_path: Path, filename: str, db: Session) -> dict:
+async def parse_resume(file_path: Path, filename: str, db: Session, user_id: int = None) -> dict:
     """
     解析简历（简化流程）：
     1. 从 PDF 提取文本
@@ -37,6 +37,7 @@ async def parse_resume(file_path: Path, filename: str, db: Session) -> dict:
         filename=filename,
         raw_text=raw_text,
         parsed_json="{}",
+        user_id=user_id,
     )
     db.add(resume)
     db.commit()

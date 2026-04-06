@@ -645,6 +645,7 @@ class BasicQAAgent(BaseAgent):
     - 中等温度
     - 根据候选人表现动态调整难度
     - 避免重复已问过的方向
+    - RAG 检索题库提供出题参考
     """
 
     def _calc_temperature(self, question_count: int, candidate_profile: CandidateProfile) -> float:
@@ -682,6 +683,21 @@ class BasicQAAgent(BaseAgent):
                 messages[0]["content"] += "\n\n▲策略提示：候选人此前回答不太自信，建议从基础概念入手，逐步深入"
             elif candidate_profile.confidence_signals >= 2:
                 messages[0]["content"] += "\n\n▲策略提示：候选人表现不错，可以提问更有深度的问题"
+
+        # RAG: 从题库检索相关题目作为出题参考
+        try:
+            from services.rag_service import KnowledgeRAGService
+            rag = KnowledgeRAGService.get_instance()
+            query = f"{position} {resume_summary[:200]}"
+            references = rag.search_questions(query, position=position, k=3)
+            if references:
+                ref_text = "\n".join([
+                    f"- 【{r['title']}】({r['difficulty']}) 考点: {', '.join(r['key_points'])}"
+                    for r in references
+                ])
+                messages[0]["content"] += f"\n\n【题库参考】以下是推荐的出题方向，可以参考但不必完全照搬：\n{ref_text}"
+        except Exception as e:
+            logger.warning(f"RAG 检索题目失败（不影响面试）: {e}")
 
         return messages
 

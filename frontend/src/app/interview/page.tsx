@@ -11,20 +11,23 @@ import ChatInput from "@/components/ChatInput";
 import ChatWindow from "@/components/ChatWindow";
 import CodeEditor from "@/components/CodeEditor";
 import InterviewProgress from "@/components/InterviewProgress";
+import {
+  SidebarHeader,
+  SidebarDivider,
+  SidebarFooter,
+} from "@/components/SidebarNav";
 import { CodingProblem, endInterview, fetchProblem } from "@/lib/api";
 import { InterviewWebSocket } from "@/lib/websocket";
 import { feLogger } from "@/logger";
 import { useInterviewStore } from "@/store/useInterviewStore";
 import { TtsPlayer } from "@/ttsPlayer";
 import {
-    BarChart3,
     ChevronLeft,
     PhoneOff,
     Volume2,
     VolumeX
 } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -263,22 +266,7 @@ export default function InterviewPage() {
     <div className="flex h-screen">
       {/* ========== 左侧栏 ========== */}
       <aside className="flex w-[260px] flex-shrink-0 flex-col border-r border-black/5 bg-surface-sidebar">
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <Image
-            src="/logo.png"
-            alt="华中师大 AI 面试官"
-            width={36}
-            height={36}
-            className="rounded-xl"
-          />
-          <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-ink-primary leading-tight">
-              AI 面试官
-            </h1>
-            <p className="text-[11px] text-ink-tertiary">华中师范大学</p>
-          </div>
-        </div>
+        <SidebarHeader />
 
         {/* 返回首页 */}
         <div className="px-3 mb-2">
@@ -291,7 +279,7 @@ export default function InterviewPage() {
           </button>
         </div>
 
-        <div className="mx-4 border-t border-black/5" />
+        <SidebarDivider />
 
         {/* 面试阶段信息 */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -318,16 +306,6 @@ export default function InterviewPage() {
               )}
               {ttsEnabled ? "语音已开启" : "语音已关闭"}
             </button>
-
-            {sessionId && (
-              <Link
-                href={`/dashboard?session_id=${sessionId}`}
-                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-ink-tertiary transition-all hover:bg-surface-hover"
-              >
-                <BarChart3 className="h-4 w-4" />
-                实时数据仪表盘
-              </Link>
-            )}
           </div>
         </div>
 
@@ -341,6 +319,8 @@ export default function InterviewPage() {
             结束面试
           </button>
         </div>
+
+        <SidebarFooter />
       </aside>
 
       {/* ========== 右侧对话区域 ========== */}

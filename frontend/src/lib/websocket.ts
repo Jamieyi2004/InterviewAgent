@@ -34,7 +34,8 @@ export class InterviewWebSocket {
 
   /** 建立 WebSocket 连接 */
   connect() {
-    const url = `${WS_BASE}/api/interview/chat/${this.sessionId}`;
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const url = `${WS_BASE}/api/interview/chat/${this.sessionId}${token ? `?token=${token}` : ""}`;
     this.ws = new WebSocket(url);
 
     this.ws.onmessage = (event) => {

@@ -8,9 +8,11 @@ from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from auth import get_current_user
 from config import UPLOAD_DIR
 from models.database import get_db
 from models.schemas import ResumeUploadResponse
+from models.user import User
 from services.resume_parser import parse_resume
 
 router = APIRouter(prefix="/api/resume", tags=["简历管理"])
@@ -20,13 +22,13 @@ router = APIRouter(prefix="/api/resume", tags=["简历管理"])
 async def upload_resume(
     file: UploadFile = File(..., description="简历PDF文件"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     上传并解析简历
 
     - 接收 PDF 文件
     - 提取文本内容
-    - 调用 LLM 结构化解析
     - 返回解析结果
     """
     # 校验文件类型
@@ -39,7 +41,7 @@ async def upload_resume(
         shutil.copyfileobj(file.file, f)
 
     try:
-        result = await parse_resume(file_path, file.filename, db)
+        result = await parse_resume(file_path, file.filename, db, user_id=current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:

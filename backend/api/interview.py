@@ -10,8 +10,11 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from auth import get_current_user, verify_session_owner, authenticate_websocket
 from models.database import get_db, SessionLocal
+from models.interview import InterviewSession
 from models.schemas import InterviewStartRequest, InterviewStartResponse
+from models.user import User
 from services.interview_agent import (
     create_interview_session,
     get_agent,
@@ -33,6 +36,7 @@ _session_problems: dict[int, dict] = {}
 async def start_interview(
     req: InterviewStartRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     创建面试会话
@@ -47,6 +51,7 @@ async def start_interview(
             position=req.position,
             db=db,
             persona_name=req.persona_name,
+            user_id=current_user.id,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -62,6 +67,8 @@ async def interview_chat(websocket: WebSocket, session_id: int):
     """
     WebSocket 面试对话
 
+    认证方式：query param ?token=xxx
+
     协议：
     - 客户端连接后，服务端先推送面试官开场白（流式）
     - 客户端发送 JSON: {"content": "候选人回答"}
@@ -69,6 +76,31 @@ async def interview_chat(websocket: WebSocket, session_id: int):
     - 服务端推送完成: {"type": "done", "stage": "当前阶段", "state": {...}}
     - 面试结束时:    {"type": "finished", "session_id": ...}
     """
+    # ---- WebSocket 认证 ----
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="缺少认证 token")
+        return
+
+    db_auth = SessionLocal()
+    try:
+        user = authenticate_websocket(token, db_auth)
+        # 校验会话归属
+        session = db_auth.query(InterviewSession).filter(
+            InterviewSession.id == session_id
+        ).first()
+        if not session:
+            await websocket.close(code=4004, reason="会话不存在")
+            return
+        if session.user_id is not None and session.user_id != user.id:
+            await websocket.close(code=4003, reason="无权访问此会话")
+            return
+    except Exception:
+        await websocket.close(code=4003, reason="认证失败")
+        return
+    finally:
+        db_auth.close()
+
     await websocket.accept()
 
     agent = get_agent(session_id)
@@ -99,8 +131,7 @@ async def interview_chat(websocket: WebSocket, session_id: int):
         await save_message(session_id, "interviewer", opening_text, state["current_stage"], db)
 
         # 异步触发开场白 TTS（按句分段）
-        # round_id 用于标识一轮对话，同一轮内所有句子共享相同的 round_id
-        round_counter = 0  # 轮次计数器
+        round_counter = 0
         if opening_text:
             opening_round_id = f"{session_id}-round-{round_counter}"
             round_counter += 1
@@ -125,7 +156,6 @@ async def interview_chat(websocket: WebSocket, session_id: int):
 
         # ---- 2. 对话循环 ----
         while True:
-            # 等待候选人消息
             logger.info("[WS:%s] 等待候选人消息...", session_id)
             data = await websocket.receive_text()
             try:
@@ -154,7 +184,7 @@ async def interview_chat(websocket: WebSocket, session_id: int):
 
             # 持久化面试官回复（清理标记和格式）
             raw_text = "".join(full_response)
-            interviewer_text, _ = extract_stage_marker(raw_text)  # 移除阶段标记
+            interviewer_text, _ = extract_stage_marker(raw_text)
             interviewer_text = clean_llm_output(interviewer_text)
             new_stage = agent.state_machine.stage.value
             await save_message(session_id, "interviewer", interviewer_text, new_stage, db)
@@ -174,7 +204,7 @@ async def interview_chat(websocket: WebSocket, session_id: int):
                     "state": state,
                 })
 
-                # 异步触发 TTS，按句分段，音频准备好后单独推送，不阻塞文本 done
+                # 异步触发 TTS
                 if interviewer_text:
                     current_round_id = f"{session_id}-round-{round_counter}"
                     round_counter += 1
@@ -200,24 +230,22 @@ async def interview_chat(websocket: WebSocket, session_id: int):
                     )
 
     except WebSocketDisconnect:
-        import logging
-
-        logging.getLogger(__name__).info("[WebSocket] 客户端断开连接: session_id=%s", session_id)
+        logger.info("[WebSocket] 客户端断开连接: session_id=%s", session_id)
     except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).exception("[WebSocket] 异常: %s", e)
+        logger.exception("[WebSocket] 异常: %s", e)
         await websocket.send_json({"type": "error", "content": str(e)})
     finally:
         db.close()
 
 
 @router.post("/end/{session_id}")
-async def end_interview(session_id: int, db: Session = Depends(get_db)):
-    """
-    手动结束面试（可选，WebSocket 断开时也会自动处理）。
-    若会话已在内存中不存在（如后端重启），仍返回 200，便于前端跳转报告页。
-    """
+async def end_interview(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """手动结束面试"""
+    verify_session_owner(session_id, current_user.id, db)
     agent = get_agent(session_id)
     if agent:
         remove_agent(session_id)
@@ -226,15 +254,14 @@ async def end_interview(session_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/problem/{session_id}")
-async def get_current_problem(session_id: int):
-    """
-    获取当前会话的算法题目（进入 coding 阶段时前端调用）
-    """
-    # 如果已有缓存，直接返回
+async def get_current_problem(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """获取当前会话的算法题目"""
     if session_id in _session_problems:
         return _session_problems[session_id]
 
-    # 随机选一道题
     problem = get_random_problem()
     if not problem:
         return {"error": "题库为空"}

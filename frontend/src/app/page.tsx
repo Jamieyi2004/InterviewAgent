@@ -9,20 +9,22 @@
 "use client";
 
 import ResumeUploader from "@/components/ResumeUploader";
+import {
+  SidebarHeader,
+  SidebarNavGroup,
+  SidebarDivider,
+  SidebarFooter,
+} from "@/components/SidebarNav";
 import { startInterview } from "@/lib/api";
 import { useInterviewStore } from "@/store/useInterviewStore";
 import {
-    BarChart3,
     Briefcase,
     ChevronRight,
     FileText,
     GraduationCap,
-    History,
     MessageSquare,
     Plus,
-    Settings,
     Sparkles,
-    User
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -98,22 +100,7 @@ export default function HomePage() {
     <div className="flex h-screen">
       {/* ========== 左侧栏 ========== */}
       <aside className="flex w-[260px] flex-shrink-0 flex-col border-r border-black/5 bg-surface-sidebar">
-        {/* Logo 区域 */}
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <Image
-            src="/logo.png"
-            alt="华中师大 AI 面试官"
-            width={36}
-            height={36}
-            className="rounded-xl"
-          />
-          <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-ink-primary leading-tight">
-              AI 面试官
-            </h1>
-            <p className="text-[11px] text-ink-tertiary">华中师范大学</p>
-          </div>
-        </div>
+        <SidebarHeader />
 
         {/* 新建面试按钮 */}
         <div className="px-3 mb-2">
@@ -128,40 +115,9 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* 分割线 */}
-        <div className="mx-4 border-t border-black/5" />
-
-        {/* 导航链接 */}
-        <div className="px-3 py-3">
-          <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-wider text-ink-tertiary">
-            功能导航
-          </p>
-          <nav className="flex flex-col gap-0.5">
-            <Link
-              href="/sessions"
-              className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-ink-secondary transition-all hover:bg-surface-hover"
-            >
-              <History className="h-4 w-4" />
-              会话管理
-            </Link>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-ink-secondary transition-all hover:bg-surface-hover"
-            >
-              <BarChart3 className="h-4 w-4" />
-              数据仪表盘
-            </Link>
-            <Link
-              href="/admin"
-              className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-ink-secondary transition-all hover:bg-surface-hover"
-            >
-              <Settings className="h-4 w-4" />
-              后台管理
-            </Link>
-          </nav>
-        </div>
-
-        <div className="mx-4 border-t border-black/5" />
+        <SidebarDivider />
+        <SidebarNavGroup currentPath="/" />
+        <SidebarDivider />
 
         {/* 历史记录区 —— 空状态 */}
         <div className="flex-1 overflow-y-auto px-3 py-3">
@@ -179,19 +135,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* 底部用户信息 */}
-        <div className="border-t border-black/5 p-3">
-          <div className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors hover:bg-surface-hover cursor-pointer">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-700/10">
-              <User className="h-4 w-4 text-brand-700" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-ink-primary truncate">候选人</p>
-              <p className="text-[11px] text-ink-tertiary">免费体验中</p>
-            </div>
-            <Settings className="h-4 w-4 text-ink-tertiary" />
-          </div>
-        </div>
+        <SidebarFooter />
       </aside>
 
       {/* ========== 右侧主区域 ========== */}
@@ -230,6 +174,10 @@ export default function HomePage() {
                     onClick={() => {
                       if (card.action === "start") {
                         setShowSetup(true);
+                      } else if (card.action === "resume") {
+                        router.push("/resume-analysis");
+                      } else if (card.action === "tips" || card.action === "faq") {
+                        router.push("/knowledge");
                       }
                     }}
                     className="group flex items-start gap-3 rounded-2xl border border-black/5 bg-surface-card p-4 text-left transition-all hover:border-brand-700/15 hover:shadow-card-hover active:scale-[0.98]"

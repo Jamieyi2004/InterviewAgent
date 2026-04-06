@@ -33,3 +33,8 @@ DEFAULT_MAX_QUESTIONS = {
     "project_deep": 3,
     "summary": 1,
 }
+
+# ---- JWT 认证 ----
+SECRET_KEY = os.getenv("SECRET_KEY", "ccnu-interview-agent-dev-secret-2024")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24h

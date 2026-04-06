@@ -248,6 +248,20 @@ class RealTimeEvaluationAgent:
             history_context=history_context,
         )
 
+        # RAG: 检索参考答案，注入评估 prompt 辅助对照评分
+        try:
+            from services.rag_service import KnowledgeRAGService
+            rag = KnowledgeRAGService.get_instance()
+            refs = rag.search_reference_answer(question, k=2)
+            if refs:
+                ref_text = "\n".join([
+                    f"- {r['title']}: {r['answer'][:200]}\n  考点: {', '.join(r['key_points'])}"
+                    for r in refs
+                ])
+                user_prompt += f"\n\n**【参考答案】**（用于对照评分，不要求候选人完全一致）：\n{ref_text}"
+        except Exception as e:
+            logger.warning(f"RAG 检索参考答案失败（不影响评估）: {e}")
+
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,

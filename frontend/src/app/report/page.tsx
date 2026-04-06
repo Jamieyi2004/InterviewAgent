@@ -1,14 +1,19 @@
 /**
- * 评估报告页面（Soft Minimalism 风格）
+ * 评估报告页面
  */
 
 "use client";
 
 import ReportCard from "@/components/ReportCard";
+import {
+  SidebarHeader,
+  SidebarNavGroup,
+  SidebarDivider,
+  SidebarFooter,
+} from "@/components/SidebarNav";
 import { fetchReport, generateReport } from "@/lib/api";
 import { useInterviewStore } from "@/store/useInterviewStore";
-import { ArrowLeft, BarChart3, History, Loader2, Plus, RotateCcw, Settings, User } from "lucide-react";
-import Image from "next/image";
+import { GraduationCap, Loader2, Plus, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -55,24 +60,12 @@ function ReportContent() {
 
   return (
     <div className="flex h-screen">
-      {/* ========== 左侧栏 ========== */}
+      {/* 侧边栏 */}
       <aside className="flex w-[260px] flex-shrink-0 flex-col border-r border-black/5 bg-surface-sidebar">
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <Image
-            src="/logo.png"
-            alt="华中师大 AI 面试官"
-            width={36}
-            height={36}
-            className="rounded-xl"
-          />
-          <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-ink-primary leading-tight">
-              AI 面试官
-            </h1>
-            <p className="text-[11px] text-ink-tertiary">华中师范大学</p>
-          </div>
-        </div>
+        <SidebarHeader />
+        <SidebarDivider />
+        <SidebarNavGroup currentPath="/report" />
+        <SidebarDivider />
 
         {/* 操作 */}
         <div className="px-3 space-y-1">
@@ -85,64 +78,26 @@ function ReportContent() {
             </div>
             新建面试
           </button>
-          <button
-            onClick={() => router.push("/")}
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-ink-secondary transition-all hover:bg-surface-hover"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            返回首页
-          </button>
           <Link
-            href={`/dashboard?session_id=${sessionId}`}
+            href={`/coaching?session_id=${sessionId}`}
             className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-ink-secondary transition-all hover:bg-surface-hover"
           >
-            <BarChart3 className="h-4 w-4" />
-            数据仪表盘
-          </Link>
-          <Link
-            href="/sessions"
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-ink-secondary transition-all hover:bg-surface-hover"
-          >
-            <History className="h-4 w-4" />
-            会话管理
+            <GraduationCap className="h-4 w-4" />
+            面试辅导
           </Link>
         </div>
 
         <div className="flex-1" />
-
-        {/* 底部 */}
-        <div className="border-t border-black/5 p-3">
-          <div className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors hover:bg-surface-hover cursor-pointer">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-700/10">
-              <User className="h-4 w-4 text-brand-700" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-ink-primary truncate">候选人</p>
-              <p className="text-[11px] text-ink-tertiary">免费体验中</p>
-            </div>
-            <Settings className="h-4 w-4 text-ink-tertiary" />
-          </div>
-        </div>
+        <SidebarFooter />
       </aside>
 
-      {/* ========== 右侧主区域 ========== */}
+      {/* 主区域 */}
       <main className="flex-1 overflow-y-auto bg-surface-main">
         {isLoading ? (
           <div className="flex h-full flex-col items-center justify-center">
-            <div className="relative mb-4">
-              <Image
-                src="/logo.png"
-                alt=""
-                width={48}
-                height={48}
-                className="rounded-2xl animate-float"
-              />
-            </div>
             <Loader2 className="mb-3 h-6 w-6 animate-spin text-brand-700" />
             <p className="text-sm font-medium text-ink-primary">正在生成评估报告</p>
-            <p className="mt-1 text-xs text-ink-tertiary">
-              AI 正在分析你的面试表现，请稍候
-            </p>
+            <p className="mt-1 text-xs text-ink-tertiary">AI 正在分析你的面试表现，请稍候</p>
           </div>
         ) : error ? (
           <div className="flex h-full flex-col items-center justify-center">
@@ -156,7 +111,6 @@ function ReportContent() {
           </div>
         ) : (
           <div className="mx-auto max-w-3xl px-8 py-8">
-            {/* 页面标题 */}
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h1 className="text-lg font-semibold text-ink-primary">面试评估报告</h1>

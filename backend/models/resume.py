@@ -4,7 +4,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 
 from models.database import Base
 
@@ -17,4 +17,5 @@ class Resume(Base):
     filename = Column(String(255), nullable=False, comment="原始文件名")
     raw_text = Column(Text, comment="PDF 提取的原始文本")
     parsed_json = Column(Text, comment="LLM 解析后的结构化 JSON")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True, comment="所属用户")
     created_at = Column(DateTime, default=datetime.utcnow)

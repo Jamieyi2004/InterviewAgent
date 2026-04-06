@@ -15,6 +15,7 @@ class InterviewSession(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True, comment="所属用户")
     position = Column(String(255), nullable=False, comment="目标岗位")
     status = Column(String(50), default="in_progress", comment="in_progress / completed")
     current_stage = Column(String(50), default="opening", comment="当前面试阶段")

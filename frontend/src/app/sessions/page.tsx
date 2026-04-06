@@ -142,7 +142,7 @@ export default function SessionsPage() {
         <div className="border-b border-black/5 px-8 py-5">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-ink-primary">会话管理</h2>
+              <h2 className="text-lg font-semibold text-ink-primary">我的会话</h2>
               <p className="mt-0.5 text-xs text-ink-tertiary">
                 共 {total} 条面试记录
               </p>
@@ -238,7 +238,7 @@ export default function SessionsPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(`/dashboard?session_id=${item.id}`);
+                              router.push(`/admin/dashboard?session_id=${item.id}`);
                             }}
                             className="rounded-lg p-1.5 text-ink-secondary transition-colors hover:bg-surface-hover hover:text-brand-700"
                             title="数据分析"

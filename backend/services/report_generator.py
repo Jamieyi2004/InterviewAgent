@@ -7,7 +7,7 @@ import json
 from sqlalchemy.orm import Session
 
 from agent.chains import call_llm_json
-from agent.prompts import REPORT_GENERATION_PROMPT
+from agent.prompt_templates import REPORT_GENERATION_PROMPT
 from models.interview import InterviewSession, Report
 from services.interview_agent import get_agent
 
