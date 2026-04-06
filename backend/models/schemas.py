@@ -23,12 +23,14 @@ class InterviewStartRequest(BaseModel):
     """开始面试请求"""
     resume_id: int
     position: str = "Java后端开发工程师"
+    persona_name: str = ""   # 面试官人设名称（可选）
 
 
 class InterviewStartResponse(BaseModel):
     """开始面试响应"""
     session_id: int
     message: str = "面试会话已创建"
+    persona: str = ""   # 使用的面试官人设名称
 
 
 # ===================== WebSocket 消息 =====================

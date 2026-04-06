@@ -36,3 +36,6 @@ Thumbs.db
 
 # 音频输出
 backend/scripts/tts_output.mp3
+
+# Core dumps
+core.*

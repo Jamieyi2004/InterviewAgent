@@ -17,12 +17,14 @@ import { feLogger } from "@/logger";
 import { useInterviewStore } from "@/store/useInterviewStore";
 import { TtsPlayer } from "@/ttsPlayer";
 import {
+    BarChart3,
     ChevronLeft,
     PhoneOff,
     Volume2,
     VolumeX
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -316,6 +318,16 @@ export default function InterviewPage() {
               )}
               {ttsEnabled ? "语音已开启" : "语音已关闭"}
             </button>
+
+            {sessionId && (
+              <Link
+                href={`/dashboard?session_id=${sessionId}`}
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-ink-tertiary transition-all hover:bg-surface-hover"
+              >
+                <BarChart3 className="h-4 w-4" />
+                实时数据仪表盘
+              </Link>
+            )}
           </div>
         </div>
 

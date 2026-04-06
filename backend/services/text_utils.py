@@ -1,7 +1,8 @@
-"""文本相关工具：分句、清理 LLM 输出等。"""
+"""文本相关工具：分句、清理 LLM 输出、简历解析辅助等。"""
 
+import json
 import re
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 # 简单中文分句：按句号/问号/感叹号（中英文）分隔，保留标点
 SENTENCE_DELIMITERS = r"[。！？!?]"
@@ -78,3 +79,16 @@ def split_sentences(text: str) -> List[str]:
     if buf.strip():
         sentences.append(buf.strip())
     return sentences
+
+
+def extract_candidate_name(parsed_json: Optional[str]) -> str:
+    """从简历 parsed_json 字段提取候选人姓名"""
+    if not parsed_json:
+        return "未知"
+    try:
+        data = json.loads(parsed_json)
+        if isinstance(data, dict):
+            return data.get("name") or data.get("姓名") or "未知"
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return "未知"

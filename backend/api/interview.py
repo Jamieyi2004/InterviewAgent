@@ -46,6 +46,7 @@ async def start_interview(
             resume_id=req.resume_id,
             position=req.position,
             db=db,
+            persona_name=req.persona_name,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

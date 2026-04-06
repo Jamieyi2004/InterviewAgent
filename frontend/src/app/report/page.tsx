@@ -7,8 +7,9 @@
 import ReportCard from "@/components/ReportCard";
 import { fetchReport, generateReport } from "@/lib/api";
 import { useInterviewStore } from "@/store/useInterviewStore";
-import { ArrowLeft, Loader2, Plus, RotateCcw, Settings, User } from "lucide-react";
+import { ArrowLeft, BarChart3, History, Loader2, Plus, RotateCcw, Settings, User } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
@@ -91,6 +92,20 @@ function ReportContent() {
             <ArrowLeft className="h-4 w-4" />
             返回首页
           </button>
+          <Link
+            href={`/dashboard?session_id=${sessionId}`}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-ink-secondary transition-all hover:bg-surface-hover"
+          >
+            <BarChart3 className="h-4 w-4" />
+            数据仪表盘
+          </Link>
+          <Link
+            href="/sessions"
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-ink-secondary transition-all hover:bg-surface-hover"
+          >
+            <History className="h-4 w-4" />
+            会话管理
+          </Link>
         </div>
 
         <div className="flex-1" />

@@ -12,15 +12,8 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-/** 面试阶段标签映射 */
-export const STAGE_LABELS: Record<string, string> = {
-  opening: "自我介绍",
-  coding: "算法编程",
-  basic_qa: "基础考察",
-  project_deep: "项目深挖",
-  summary: "面试总结",
-  finished: "已结束",
-};
+/** 重新导出常量，兼容已有导入 */
+export { STAGE_LABELS } from "@/lib/constants";
 
 interface InterviewState {
   // ---- 简历相关 ----
