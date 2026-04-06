@@ -1,105 +1,95 @@
-# Interview-Agent 改造进度追踪
+# Interview-Agent 改造总结
 
-> 基于 claude-code-inspiration.md 的改造计划，按优先级实施
+> 基于 Claude Code 源码架构分析，完成 15 个模块的改造，新增 ~3,420 行后端代码 + ~2,475 行前端代码。
 
-## P0 — 核心改造（强烈推荐）
+---
 
-| # | 模块 | 状态 | 文件路径 | 代码行数 |
-|---|------|------|----------|---------|
-| 1 | Token消耗追踪器 (TokenTracker) | ✅ 已完成 | `backend/services/token_tracker.py` | ~220行 |
-| 2 | 结构化会话记忆 (SessionMemory) | ✅ 已完成 | `backend/agent/session_memory.py` | ~280行 |
-| 3 | 上下文压缩器 (ContextCompactor+Snip) | ✅ 已完成 | `backend/agent/context_compactor.py` | ~350行 |
-| 4 | 实时评估Agent (EvaluationAgent) | ✅ 已完成 | `backend/agent/evaluation_agent.py` | ~380行 |
-| 5 | 面试策略规划器 (InterviewPlanner) | ✅ 已完成 | `backend/agent/interview_planner.py` | ~280行 |
-| 6 | 面试引擎重构 (InterviewEngine) | ✅ 已完成 | `backend/agent/interview_engine.py` | ~350行 |
+## 改造模块总览
 
-## P1 — 推荐改造（增加完整性）
+### P0 — 核心改造
 
-| # | 模块 | 状态 | 文件路径 | 代码行数 |
-|---|------|------|----------|---------|
-| 7 | 面试官人设系统 (Persona) | ✅ 已完成 | `backend/agent/persona_loader.py` + 4个YAML | ~200行 |
-| 8 | 技能抽象基类 (SkillSystem) | ✅ 已完成 | `backend/skills/base.py` | ~320行 |
-| 9 | 生命周期钩子 (HookSystem) | ✅ 已完成 | `backend/agent/hooks.py` | ~280行 |
-| 10 | 后台洞察提取Agent (InsightExtractor) | ✅ 已完成 | `backend/agent/insight_extractor.py` | ~230行 |
+| # | 模块 | 文件路径 | 行数 | 借鉴来源 |
+|---|------|----------|:----:|----------|
+| 1 | Token 消耗追踪器 | `backend/services/token_tracker.py` | ~220 | Claude Code `cost-tracker.ts` |
+| 2 | 结构化会话记忆 | `backend/agent/session_memory.py` | ~280 | Claude Code `SessionMemory/` — 10段式模板 + Section 级 Token 预算 |
+| 3 | 上下文压缩器 + Snip | `backend/agent/context_compactor.py` | ~350 | Claude Code `compact/` — 9段式摘要 + 增量精简 |
+| 4 | 实时评估 Agent | `backend/agent/evaluation_agent.py` | ~380 | Claude Code `verificationAgent.ts` — 反偏差机制 |
+| 5 | 面试策略规划器 | `backend/agent/interview_planner.py` | ~280 | Claude Code `EnterPlanModeTool/` — 决策树 + 追问路径 |
+| 6 | 面试引擎 (核心) | `backend/agent/interview_engine.py` | ~350 | Claude Code `QueryEngine.ts` — Coordinator-Worker 模式 |
 
-## P2 — 锦上添花
+### P1 — 推荐改造
 
-| # | 模块 | 状态 | 文件路径 | 代码行数 |
-|---|------|------|----------|---------|
-| 11 | 安全过滤增强 (EnhancedSafety) | ✅ 已完成 | `backend/agent/enhanced_safety.py` | ~250行 |
-| 12 | API层更新 (Enhanced API) | ✅ 已完成 | `backend/api/enhanced.py` | ~130行 |
-| 13 | InterviewAgent服务重构 | ✅ 已完成 | `backend/services/interview_agent.py` | 改造 |
-| 14 | 数据分析仪表盘 (Dashboard) | ✅ 已完成 | `frontend/src/app/dashboard/page.tsx` | ~530行 |
-| 15 | 面试建议引擎 (SuggestionEngine) | ✅ 已完成 | 已集成到 InsightExtractor + Dashboard 洞察面板 | - |
+| # | 模块 | 文件路径 | 行数 | 借鉴来源 |
+|---|------|----------|:----:|----------|
+| 7 | 面试官人设系统 | `backend/agent/persona_loader.py` + 4 YAML | ~200 | Claude Code Agent Definition — YAML 配置化 |
+| 8 | 技能抽象基类 | `backend/skills/base.py` | ~320 | Claude Code `Tool.ts` — 工厂模式 + 注册发现 |
+| 9 | 生命周期钩子 | `backend/agent/hooks.py` | ~280 | Claude Code `toolHooks.ts` — pre/post 事件链 |
+| 10 | 洞察提取 Agent | `backend/agent/insight_extractor.py` | ~230 | Claude Code `extractMemories/` — 后台异步 + 增量更新 |
 
-## 集成改造
+### P2 — 锦上添花
 
-| # | 模块 | 状态 | 备注 |
-|---|------|------|------|
-| A | main.py 路由注册 | ✅ 已完成 | 新增 enhanced_router + sessions_router + admin_router |
-| B | schemas.py 模型更新 | ✅ 已完成 | 新增 persona_name 字段 |
-| C | interview.py 接口适配 | ✅ 已完成 | persona_name 透传 |
-| D | 前端页面扩展 | ✅ 已完成 | 新增 4 个页面 + 7 个共享组件 |
-| E | 前端导航集成 | ✅ 已完成 | 全局侧边栏导航互通 |
+| # | 模块 | 文件路径 | 行数 |
+|---|------|----------|:----:|
+| 11 | 安全过滤增强 | `backend/agent/enhanced_safety.py` | ~250 |
+| 12 | Enhanced API | `backend/api/enhanced.py` | ~130 |
+| 13 | InterviewAgent 服务重构 | `backend/services/interview_agent.py` | 改造 |
+| 14 | 数据分析仪表盘 | `frontend/src/app/dashboard/page.tsx` | ~530 |
+| 15 | 面试建议引擎 | 已集成到 InsightExtractor + Dashboard | - |
 
-## 新增文件清单
+### 前端扩展
 
-```
-backend/
-├── agent/
-│   ├── session_memory.py        # 结构化会话记忆
-│   ├── context_compactor.py     # 上下文压缩器 + Snip
-│   ├── evaluation_agent.py      # 实时评估Agent（含反偏差）
-│   ├── interview_planner.py     # 面试策略规划器
-│   ├── interview_engine.py      # 面试引擎（核心重构）
-│   ├── persona_loader.py        # 人设加载器
-│   ├── hooks.py                 # 生命周期钩子系统
-│   ├── insight_extractor.py     # 后台洞察提取Agent
-│   ├── enhanced_safety.py       # 增强安全过滤器
-│   └── personas/                # 面试官人设 YAML 配置
-│       ├── strict.yaml          # 严格型
-│       ├── friendly.yaml        # 友好型
-│       ├── pressure.yaml        # 压力型
-│       └── mentor.yaml          # 导师型
-├── skills/
-│   ├── __init__.py              # 技能包初始化
-│   └── base.py                  # 技能基类 + 4个内置技能
-├── services/
-│   └── token_tracker.py         # Token消耗追踪器
-└── api/
-    └── enhanced.py              # 增强功能 API 端点
-```
+| # | 模块 | 备注 |
+|---|------|------|
+| A | 会话管理页面 | `/sessions` 列表 + `/sessions/[id]` 详情 |
+| B | 数据分析仪表盘 | `/dashboard` — Recharts 图表 |
+| C | 后台管理页面 | `/admin` — 统计/人设/技能/岗位分布 |
+| D | 7 个共享组件 | SidebarNav, StatCard, StatusBadge, Pagination 等 |
+| E | 全局导航集成 | 所有页面侧边栏互通 |
 
-## 修改文件清单
+---
+
+## 核心架构设计
 
 ```
-backend/
-├── main.py                      # 新增 enhanced_router 注册
-├── services/interview_agent.py  # InterviewAgent → InterviewEngine 包装
-├── models/schemas.py            # 新增 persona_name 字段
-└── api/interview.py             # persona_name 透传
+用户回答 → InterviewEngine (AsyncGenerator 驱动)
+              ├── Coordinator 分发任务
+              │     ├── 评估 Worker（实时评分 + 反偏差）
+              │     ├── 追问 Worker（技能系统驱动）
+              │     ├── 洞察 Worker（后台异步提取）
+              │     └── 综合结果 → 生成面试官回复
+              ├── SessionMemory（10段式结构化笔记）
+              ├── ContextCompactor（9段式压缩 + Snip 精简）
+              ├── TokenTracker（多层预算控制）
+              └── HookManager（生命周期钩子）
 ```
 
-## 新增代码量统计
-
-| 类别 | 文件数 | 估算行数 |
-|------|:-----:|:-------:|
-| 新增文件 | 14 | ~3,270行 |
-| 修改文件 | 4 | ~150行（增量） |
-| **总计** | **18** | **~3,420行** |
+---
 
 ## 技术亮点（论文可引用）
 
-1. **Coordinator-Worker 架构**：InterviewEngine 协调多个 Worker（评估、洞察提取、规划）并行处理
-2. **结构化会话记忆**：10段式模板 + Section 级 Token 预算管理
-3. **9段式上下文压缩**：分析-摘要两阶段 + 增量 Snip 精简
-4. **反偏差评估机制**：5种已知偏差的主动对抗策略 + 证据链要求
-5. **面试策略规划**：基于简历分析的决策树 + 追问路径预设
-6. **生命周期钩子系统**：pre/post 事件、优先级排序、中断机制
-7. **可扩展技能系统**：抽象基类 + 工厂模式 + 注册发现
-8. **面试官人设系统**：YAML 配置化 + 运行时切换
-9. **后台异步洞察提取**：增量更新 + 去重 + 策略反馈
-10. **增强安全过滤**：Prompt 注入检测 + AI 代答检测 + 敏感信息防护
+1. **Coordinator-Worker 架构** — 多 Worker 并行处理（评估、追问、洞察），Coordinator 综合结果
+2. **结构化会话记忆** — 10段式模板 + Section 级 Token 预算管理（≤500 tokens/section）
+3. **9段式上下文压缩** — 分析-摘要两阶段 + Snip 增量精简
+4. **反偏差评估机制** — 5种已知偏差（光环/首因/宽容/确认/近因）的主动对抗 + 证据链要求
+5. **面试策略规划** — 简历分析驱动的决策树 + 追问路径预设
+6. **生命周期钩子** — pre/post 事件、优先级排序、中断机制
+7. **可扩展技能系统** — 抽象基类 + 工厂模式（STAR追问/难度自适应/代码评审/知识图谱）
+8. **面试官人设系统** — YAML 配置化 + 运行时切换（严格/友好/压力/导师）
+9. **后台异步洞察提取** — 增量更新 + 去重 + 策略反馈
+10. **增强安全过滤** — Prompt 注入检测 + AI 代答检测 + 敏感信息防护
+
+---
+
+## 代码量统计
+
+| 类别 | 文件数 | 行数 |
+|------|:-----:|:----:|
+| 后端新增文件 | 14 | ~3,270 |
+| 后端修改文件 | 4 | ~150 (增量) |
+| 前端新页面 | 4 | ~1,610 |
+| 前端共享组件 | 7 | ~380 |
+| 前端 API/工具 | 2 改 | ~200 (增量) |
+| **总计** | **~31** | **~5,610** |
 
 ---
 
