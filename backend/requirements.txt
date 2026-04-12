@@ -1,3 +1,7 @@
+# InterviewAgent 后端通用依赖（阿里云 TTS、无本地 GPU 时够用）。
+# 若使用本地 Step-Audio TTS，请在已安装 PyTorch 的 conda 环境中执行：
+#   pip install -r requirements-step-audio.txt
+#
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
@@ -9,10 +13,12 @@ openai>=1.0.0
 pdfplumber>=0.11.0
 pydantic>=2.5.0
 python-dotenv>=1.0.0
-dashscope>=1.23.4
+dashscope>=1.25.6
 PyYAML>=6.0
 loguru>=0.7.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+# bcrypt 4.1+ 与 passlib 1.7.4 不兼容（无 __about__），且更严格的 72 字节限制会触发哈希自检异常
+bcrypt>=4.0.1,<4.1.0
 chromadb>=0.5.0
 pysqlite3-binary>=0.5.0

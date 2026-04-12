@@ -17,7 +17,6 @@ import {
   fetchResumeAnalysis,
   type ResumeAnalysisResponse,
 } from "@/lib/api";
-import { useInterviewStore } from "@/store/useInterviewStore";
 import {
   Briefcase,
   CheckCircle2,
@@ -26,7 +25,7 @@ import {
   Lightbulb,
   Tag,
 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
 const POSITION_OPTIONS = [
@@ -85,17 +84,38 @@ function ScoreBar({ score, label }: { score: number; label: string }) {
 }
 
 function ResumeAnalysisContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const { resumeId: storeResumeId } = useInterviewStore();
-
+  const setupFlag = searchParams.get("setup");
   const resumeIdParam = searchParams.get("resume_id");
-  const resumeId = resumeIdParam ? Number(resumeIdParam) : storeResumeId;
+  const urlResumeId =
+    resumeIdParam && !Number.isNaN(Number(resumeIdParam))
+      ? Number(resumeIdParam)
+      : null;
+
+  /** 本页上传完成后的简历 ID（不再用全局 store 自动进入分析，避免侧栏每次应显示上传表单） */
+  const [pageResumeId, setPageResumeId] = useState<number | null>(null);
+  /** 每次「新分析」时递增，强制重置 ResumeUploader 内部状态 */
+  const [uploaderKey, setUploaderKey] = useState(0);
 
   const [analysis, setAnalysis] = useState<ResumeAnalysisResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [position, setPosition] = useState(POSITION_OPTIONS[0]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
+  const resumeId = urlResumeId ?? pageResumeId;
+
+  /** 侧栏「简历分析」等带 ?setup=1：清空本页状态并回到上传+岗位步骤 */
+  useEffect(() => {
+    if (setupFlag !== "1") return;
+    setPageResumeId(null);
+    setAnalysis(null);
+    setError("");
+    setExpandedSections(new Set());
+    setUploaderKey((k) => k + 1);
+    router.replace("/resume-analysis", { scroll: false });
+  }, [setupFlag, router]);
 
   const toggleSection = (key: string) => {
     setExpandedSections((prev) => {
@@ -168,11 +188,17 @@ function ResumeAnalysisContent() {
 
               <div className="mb-4 rounded-2xl border border-black/5 bg-surface-card p-5">
                 <h3 className="mb-3 text-sm font-semibold text-ink-primary">上传你的简历</h3>
-                <ResumeUploader />
+                <ResumeUploader
+                  key={uploaderKey}
+                  ignoreStoredResume
+                  onUploaded={(rid) => {
+                    setPageResumeId(rid);
+                  }}
+                />
               </div>
 
               <div className="mb-4 rounded-2xl border border-black/5 bg-surface-card p-5">
-                <h3 className="mb-3 text-sm font-semibold text-ink-primary">目标岗位（可选）</h3>
+                <h3 className="mb-3 text-sm font-semibold text-ink-primary">面试岗位（可选）</h3>
                 <div className="flex items-center gap-2.5">
                   <Briefcase className="h-4 w-4 text-ink-tertiary" />
                   <select
@@ -200,14 +226,14 @@ function ResumeAnalysisContent() {
         ) : analysis ? (
           <div className="mx-auto max-w-3xl px-8 py-8">
             {/* 页头 */}
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h1 className="text-lg font-semibold text-ink-primary">简历分析报告</h1>
                 <p className="mt-0.5 text-xs text-ink-tertiary">
-                  目标岗位：{analysis.target_position || "通用"} · AI 自动生成
+                  面试岗位：{analysis.target_position || "通用"} · AI 自动生成
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={position}
                   onChange={(e) => setPosition(e.target.value)}
@@ -222,6 +248,13 @@ function ResumeAnalysisContent() {
                   className="rounded-xl bg-brand-700 px-4 py-2 text-xs font-medium text-white hover:bg-brand-800 active:scale-[0.98]"
                 >
                   重新分析
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/resume-analysis?setup=1")}
+                  className="rounded-xl border border-black/10 bg-white px-4 py-2 text-xs font-medium text-ink-secondary hover:bg-surface-hover active:scale-[0.98]"
+                >
+                  新简历分析
                 </button>
               </div>
             </div>

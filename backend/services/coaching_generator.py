@@ -32,6 +32,12 @@ async def generate_coaching(session_id: int, db: Session) -> dict:
     if not report:
         raise ValueError(f"评估报告不存在，请先生成报告：session_id={session_id}")
 
+    # 已有辅导则直接返回（防止重复提交产生多条记录）
+    existing_coaching = get_coaching(session_id, db)
+    if existing_coaching:
+        logger.info("辅导已存在，直接返回 session_id=%d", session_id)
+        return existing_coaching
+
     report_data = json.loads(report.report_json)
 
     # 2. 获取会话信息

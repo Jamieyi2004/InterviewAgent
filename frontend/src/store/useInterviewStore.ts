@@ -44,6 +44,7 @@ interface InterviewState {
   setStreaming: (val: boolean) => void;
   setTtsEnabled: (val: boolean) => void;
   addMessage: (msg: ChatMessage) => void;
+  updateMessage: (id: string, content: string) => void;
   appendStreamToken: (token: string) => void;
   commitStreamMessage: () => void;
   setReport: (report: Record<string, unknown>) => void;
@@ -79,6 +80,13 @@ export const useInterviewStore = create<InterviewState>((set, get) => ({
 
   addMessage: (msg) =>
     set((state) => ({ messages: [...state.messages, msg] })),
+
+  updateMessage: (id, content) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id ? { ...m, content } : m
+      ),
+    })),
 
   /** 流式追加 token（面试官正在说话时） */
   appendStreamToken: (token) =>

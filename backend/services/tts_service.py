@@ -1,23 +1,53 @@
 """
-TTS 语音合成服务 —— 支持 CosyVoice 和 Qwen TTS 两种模型
+TTS 语音合成服务 —— 支持阿里云 DashScope（CosyVoice / Qwen TTS）与本地 Step-Audio 等提供方。
+
+新增提供方：在 _synthesize_with_builtin_provider 中增加分支，或调用 register_tts_provider()；
+本地实现可放在 services/tts_providers/ 下。
 """
 
 import base64
 import logging
+import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import yaml
 import dashscope
 from dashscope.audio.tts_v2 import SpeechSynthesizer as CosyVoiceSynthesizer
 
 from config import DASHSCOPE_API_KEY
+from services.tts_providers.step_audio_local import (
+    reset_step_audio_engine,
+    synthesize_step_audio,
+)
 
 logger = logging.getLogger(__name__)
 
 # 加载 TTS 配置
 _tts_config: dict = {}
+
+# 自定义提供方：fn(text, full_config_dict) -> Optional[bytes]；无需改核心分支即可挂载
+TTSProviderFn = Callable[[str, dict], Optional[bytes]]
+_EXTRA_TTS_PROVIDERS: dict[str, TTSProviderFn] = {}
+
+
+def register_tts_provider(name: str, fn: TTSProviderFn) -> None:
+    """注册自定义 TTS（如其它厂商 HTTP API）。fn 接收完整 YAML 根配置，自行读对应段落。"""
+    _EXTRA_TTS_PROVIDERS[name] = fn
+
+
+def _apply_tts_env_override(config: dict) -> None:
+    """
+    若设置环境变量 TTS_PROVIDER，覆盖 yaml 中的 provider。
+    便于用不同启动脚本选择厂商而无需改配置文件。
+    取值示例：step-audio | qwen-tts | cosyvoice
+    """
+    override = os.environ.get("TTS_PROVIDER", "").strip()
+    if not override:
+        return
+    config["provider"] = override
+    logger.info("TTS: 环境变量 TTS_PROVIDER=%s 已覆盖 yaml 中的 provider", override)
 
 
 def _load_tts_config() -> dict:
@@ -44,7 +74,17 @@ def _load_tts_config() -> dict:
                 "language_type": "Chinese",
             },
         }
+    _apply_tts_env_override(_tts_config)
     return _tts_config
+
+
+def _provider_needs_dashscope_key(provider: str) -> bool:
+    """仅使用阿里云 DashScope 的提供方需要 DASHSCOPE_API_KEY。"""
+    if provider in _EXTRA_TTS_PROVIDERS:
+        return False
+    if provider == "step-audio":
+        return False
+    return True
 
 
 def _synthesize_cosyvoice(text: str) -> Optional[bytes]:
@@ -155,36 +195,85 @@ def _download_audio_from_url(url: str) -> Optional[bytes]:
     return None
 
 
-def synthesize_to_bytes(text: str) -> Optional[bytes]:
+def _synthesize_with_builtin_provider(text: str, provider: str, config: dict) -> Optional[bytes]:
+    """内置提供方分发（不含 register_tts_provider 注册的项）。"""
+    if provider in ("qwen-tts", "qwen3-tts"):
+        stream = config.get("qwen-tts", {}).get("stream", True)
+        return _synthesize_qwen_tts(text, stream=stream)
+    if provider in ("cosyvoice", "cosyvoice-v3", "ali-cosyvoice"):
+        return _synthesize_cosyvoice(text)
+    if provider == "step-audio":
+        return synthesize_step_audio(text, config.get("step-audio", {}))
+    return None
+
+
+def synthesize_to_bytes(text: str, *, quiet: bool = False) -> Optional[bytes]:
     """
     将文本合成为语音，返回音频二进制；失败返回 None（不抛错，便于对话流程继续）。
 
-    根据 tts_config.yaml 中的 provider 配置选择使用 CosyVoice 或 Qwen TTS。
-    - CosyVoice: 返回 MP3 格式
-    - Qwen TTS: 返回 WAV 格式
+    根据 tts_config.yaml 中的 provider 选择提供方。
+    - CosyVoice: 通常为 MP3
+    - Qwen TTS: WAV
+    - step-audio: 本地 WAV
+
+    quiet: 为 True 时不打「合成成功」类 INFO（用于连接后后台预热，避免刷屏）。
     """
     if not text or not text.strip():
-        return None
-    if not DASHSCOPE_API_KEY:
-        logger.debug("TTS 未配置 DASHSCOPE_API_KEY，跳过语音合成")
         return None
 
     config = _load_tts_config()
     provider = config.get("provider", "cosyvoice")
 
+    if _provider_needs_dashscope_key(provider) and not DASHSCOPE_API_KEY:
+        logger.debug("TTS 未配置 DASHSCOPE_API_KEY，跳过语音合成（provider=%s）", provider)
+        return None
+
     try:
         t0 = time.time()
 
-        if provider == "qwen-tts":
-            qwen_config = config.get("qwen-tts", {})
-            stream = qwen_config.get("stream", True)
-            audio_bytes = _synthesize_qwen_tts(text, stream=stream)
+        fn = _EXTRA_TTS_PROVIDERS.get(provider)
+        if fn is not None:
+            audio_bytes = fn(text, config)
         else:
-            # 默认使用 cosyvoice
-            audio_bytes = _synthesize_cosyvoice(text)
+            audio_bytes = _synthesize_with_builtin_provider(text, provider, config)
+            if audio_bytes is None and provider not in (
+                "qwen-tts",
+                "qwen3-tts",
+                "cosyvoice",
+                "cosyvoice-v3",
+                "ali-cosyvoice",
+                "step-audio",
+            ):
+                logger.warning("未知 TTS provider「%s」，回退 CosyVoice", provider)
+                if not DASHSCOPE_API_KEY:
+                    return None
+                audio_bytes = _synthesize_cosyvoice(text)
 
         dt = (time.time() - t0) * 1000
-        logger.info("TTS [%s] 合成完成，耗时 %.0f ms，文本长度=%d", provider, dt, len(text))
+        if audio_bytes:
+            if not quiet:
+                logger.info(
+                    "TTS [%s] 合成成功，耗时 %.0f ms，文本长度=%d，音频字节=%d",
+                    provider,
+                    dt,
+                    len(text),
+                    len(audio_bytes),
+                )
+            else:
+                logger.debug(
+                    "TTS [%s] 预热合成完成，耗时 %.0f ms",
+                    provider,
+                    dt,
+                )
+        else:
+            logger.warning(
+                "TTS [%s] 未生成音频（返回 None），耗时 %.0f ms，文本长度=%d。"
+                " 若使用 step-audio：需当前环境可 import torch 并正确配置 code_path/model_path；"
+                " 若使用 qwen-tts/cosyvoice：检查 DASHSCOPE_API_KEY 与网络。",
+                provider,
+                dt,
+                len(text),
+            )
         return audio_bytes
     except Exception as e:
         logger.warning("TTS [%s] 合成失败: %s", provider, e)
@@ -195,6 +284,7 @@ def reload_tts_config():
     """重新加载 TTS 配置（配置文件修改后调用）"""
     global _tts_config
     _tts_config = {}
+    reset_step_audio_engine()
     _load_tts_config()
 
 

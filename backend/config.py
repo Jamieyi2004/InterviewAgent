@@ -21,8 +21,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./interview_agent.db")
 UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-# ---- TTS 语音合成（DashScope API Key，与 LLM 共用）----
-# TTS 模型和音色配置见 tts_config.yaml
+# ---- TTS / ASR（DashScope API Key）----
+# 与 LLM 共用同一 Key：只配 LLM_API_KEY 即可；若单独设置 DASHSCOPE_API_KEY 则优先使用。
+# TTS：tts_config.yaml；ASR：asr_config.yaml；均可通过环境变量切换提供方（TTS_PROVIDER / ASR_PROVIDER）
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "") or LLM_API_KEY
 
 # ---- 面试默认参数 ----

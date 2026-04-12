@@ -9,13 +9,35 @@ import { useInterviewStore } from "@/store/useInterviewStore";
 import { CheckCircle2, Loader2, Upload } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
-export default function ResumeUploader() {
+interface ResumeUploaderProps {
+  /** 上传成功回调（仍会把 resume 写入全局 store，供面试页使用） */
+  onUploaded?: (resumeId: number, filename: string) => void;
+  /**
+   * 为 true 时：不因全局 store 里已有简历而显示「已上传」，须在本组件内成功上传后才显示成功态。
+   * 用于简历分析页每次进入都要重新选简历的场景。
+   */
+  ignoreStoredResume?: boolean;
+}
+
+export default function ResumeUploader({
+  onUploaded,
+  ignoreStoredResume = false,
+}: ResumeUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** 本组件内刚上传成功的简历（配合 ignoreStoredResume） */
+  const [localResumeId, setLocalResumeId] = useState<number | null>(null);
+  const [localFilename, setLocalFilename] = useState("");
 
   const { resumeId, resumeFilename, setResume } = useInterviewStore();
+
+  const showUploaded = ignoreStoredResume
+    ? localResumeId != null
+    : !!resumeId;
+  const displayFilename =
+    ignoreStoredResume && localResumeId ? localFilename : resumeFilename;
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".pdf")) {
@@ -33,12 +55,17 @@ export default function ResumeUploader() {
     try {
       const result = await uploadResume(file);
       setResume(result.resume_id, result.filename);
+      if (ignoreStoredResume) {
+        setLocalResumeId(result.resume_id);
+        setLocalFilename(result.filename);
+      }
+      onUploaded?.(result.resume_id, result.filename);
     } catch (err) {
       setError(err instanceof Error ? err.message : "上传失败，请重试");
     } finally {
       setIsUploading(false);
     }
-  }, [setResume]);
+  }, [setResume, onUploaded, ignoreStoredResume]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -56,7 +83,7 @@ export default function ResumeUploader() {
   };
 
   // 上传成功
-  if (resumeId) {
+  if (showUploaded) {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
         <div className="flex items-center gap-3">
@@ -66,7 +93,7 @@ export default function ResumeUploader() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-emerald-800">简历已上传</p>
             <p className="truncate text-xs text-emerald-600">
-              {resumeFilename}
+              {displayFilename}
             </p>
           </div>
         </div>

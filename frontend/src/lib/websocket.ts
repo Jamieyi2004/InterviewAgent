@@ -16,6 +16,8 @@ export interface WSCallbacks {
   onDone: (stage: string, state: Record<string, unknown>) => void;
   /** 收到 TTS 语音片段（按句），MP3 base64 */
   onTtsSegment?: (payload: { audioBase64: string; segmentIndex: number; text: string; roundId?: string }) => void;
+  /** 语音输入经服务端 ASR 后的文本（在面试官 token 流之前） */
+  onAsrResult?: (text: string) => void;
   /** 面试结束 */
   onFinished: (sessionId: number) => void;
   /** 连接错误 */
@@ -44,6 +46,11 @@ export class InterviewWebSocket {
         switch (data.type) {
           case "token":
             this.callbacks.onToken(data.content);
+            break;
+          case "asr_result":
+            if (data.text != null && this.callbacks.onAsrResult) {
+              this.callbacks.onAsrResult(String(data.text));
+            }
             break;
           case "done":
             this.callbacks.onDone(data.stage, data.state);
@@ -83,6 +90,19 @@ export class InterviewWebSocket {
   send(content: string) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ content }));
+    } else {
+      this.callbacks.onError("WebSocket 连接未建立");
+    }
+  }
+
+  /**
+   * 发送语音（16kHz mono PCM s16le 的 Base64，与后端 transcribe_to_text 一致）
+   */
+  sendAudioPcmBase64(audioBase64: string) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({ audio_base64: audioBase64, audio_format: "pcm" })
+      );
     } else {
       this.callbacks.onError("WebSocket 连接未建立");
     }

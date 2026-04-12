@@ -6,6 +6,8 @@ import asyncio
 import base64
 import json
 import logging
+import os
+from datetime import datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -21,7 +23,8 @@ from services.interview_agent import (
     remove_agent,
     save_message,
 )
-from services.tts_service import synthesize_to_bytes
+from services.tts_service import get_current_provider, synthesize_to_bytes
+from services.asr_service import transcribe_to_text
 from services.text_utils import split_sentences, clean_llm_output, extract_stage_marker
 from services.problem_loader import get_random_problem
 
@@ -71,7 +74,10 @@ async def interview_chat(websocket: WebSocket, session_id: int):
 
     协议：
     - 客户端连接后，服务端先推送面试官开场白（流式）
-    - 客户端发送 JSON: {"content": "候选人回答"}
+    - 客户端发送 JSON（二选一）：
+      - 文字：{"content": "候选人回答"}
+      - 语音：{"audio_base64": "...", "audio_format": "pcm"|"wav"}（pcm 为 16kHz mono s16le）
+    - 语音会先 ASR 转写，再推送 {"type": "asr_result", "text": "..."}，再走与文字相同的流式回复
     - 服务端流式推送: {"type": "token", "content": "..."} 逐token
     - 服务端推送完成: {"type": "done", "stage": "当前阶段", "state": {...}}
     - 面试结束时:    {"type": "finished", "session_id": ...}
@@ -105,9 +111,26 @@ async def interview_chat(websocket: WebSocket, session_id: int):
 
     agent = get_agent(session_id)
     if not agent:
-        await websocket.send_json({"type": "error", "content": "面试会话不存在或已过期"})
+        await websocket.send_json({
+            "type": "error",
+            "content": "面试会话不可用：后端已重启、本场已在其他页结束，或会话已过期。请返回首页重新开启面试。",
+        })
         await websocket.close()
         return
+
+    # Step-Audio 首包冷启动极慢：在生成开场白 LLM 流式输出的同时，后台跑极短文本预热引擎，
+    # 开场 TTS 开始前再 await，使「首句语音」尽量落在已预热路径上。
+    step_audio_warmup: asyncio.Future | None = None
+    if (
+        get_current_provider() == "step-audio"
+        and os.environ.get("TTS_STEP_AUDIO_WARMUP", "1").strip() != "0"
+    ):
+        loop = asyncio.get_running_loop()
+        step_audio_warmup = loop.run_in_executor(
+            None,
+            lambda: synthesize_to_bytes("嗯", quiet=True),
+        )
+        logger.info("[WS:%s] step-audio：已开始并行预热（与开场 LLM 同步）", session_id)
 
     db = SessionLocal()
 
@@ -136,7 +159,13 @@ async def interview_chat(websocket: WebSocket, session_id: int):
             opening_round_id = f"{session_id}-round-{round_counter}"
             round_counter += 1
 
-            async def _run_opening_tts(text: str, sid: int, rid: str):
+            async def _run_opening_tts(text: str, sid: int, rid: str, warmup: asyncio.Future | None):
+                if warmup is not None:
+                    try:
+                        await warmup
+                    except Exception:
+                        logger.debug("[WS:%s] step-audio 预热 await 异常（忽略）", sid, exc_info=True)
+                # 逐句顺序合成并推送，保证 segment_index 与播放顺序一致（勿并行 run 多句）
                 loop_inner = asyncio.get_event_loop()
                 for idx, sent in enumerate(split_sentences(text)):
                     audio_bytes = await loop_inner.run_in_executor(
@@ -152,7 +181,9 @@ async def interview_chat(websocket: WebSocket, session_id: int):
                             "text": sent,
                         })
 
-            asyncio.create_task(_run_opening_tts(opening_text, session_id, opening_round_id))
+            asyncio.create_task(
+                _run_opening_tts(opening_text, session_id, opening_round_id, step_audio_warmup)
+            )
 
         # ---- 2. 对话循环 ----
         while True:
@@ -160,12 +191,57 @@ async def interview_chat(websocket: WebSocket, session_id: int):
             data = await websocket.receive_text()
             try:
                 msg = json.loads(data)
-                candidate_content = msg.get("content", "")
             except json.JSONDecodeError:
-                candidate_content = data
-
-            if not candidate_content.strip():
+                await websocket.send_json({"type": "error", "content": "消息格式应为 JSON"})
                 continue
+
+            candidate_content = ""
+
+            audio_b64 = msg.get("audio_base64")
+            if audio_b64:
+                try:
+                    audio_bytes = base64.b64decode(audio_b64)
+                except Exception:
+                    await websocket.send_json({"type": "error", "content": "音频 Base64 无效"})
+                    continue
+                if not audio_bytes:
+                    await websocket.send_json({"type": "error", "content": "空音频"})
+                    continue
+
+                audio_fmt = (msg.get("audio_format") or "pcm").lower()
+                raw_pcm = audio_fmt == "pcm"
+
+                loop_exec = asyncio.get_event_loop()
+                try:
+                    candidate_content = await loop_exec.run_in_executor(
+                        None,
+                        lambda: transcribe_to_text(
+                            audio_bytes,
+                            raw_pcm=raw_pcm,
+                        )
+                        or "",
+                    )
+                except Exception as asr_exc:
+                    logger.warning("[WS:%s] ASR 异常: %s", session_id, asr_exc)
+                    candidate_content = ""
+
+                if not candidate_content.strip():
+                    await websocket.send_json({
+                        "type": "error",
+                        "content": "未能识别语音，请重试或改用文字输入（需配置 DASHSCOPE_API_KEY 与 ASR）",
+                    })
+                    continue
+
+                await websocket.send_json({"type": "asr_result", "text": candidate_content})
+            else:
+                candidate_content = msg.get("content", "")
+                if isinstance(candidate_content, str):
+                    candidate_content = candidate_content.strip()
+                else:
+                    candidate_content = ""
+
+                if not candidate_content:
+                    continue
 
             logger.info("[WS:%s] 收到候选人消息，长度=%d", session_id, len(candidate_content))
 
@@ -210,6 +286,7 @@ async def interview_chat(websocket: WebSocket, session_id: int):
                     round_counter += 1
 
                     async def _run_tts_and_push_by_sentence(text: str, sid: int, rid: str):
+                        # 逐句顺序合成并推送，保证 segment_index 顺序（勿并行）
                         loop_inner = asyncio.get_event_loop()
                         for idx, sent in enumerate(split_sentences(text)):
                             audio_bytes = await loop_inner.run_in_executor(
@@ -245,20 +322,25 @@ async def end_interview(
     current_user: User = Depends(get_current_user),
 ):
     """手动结束面试"""
-    verify_session_owner(session_id, current_user.id, db)
+    session_row = verify_session_owner(session_id, current_user.id, db)
     agent = get_agent(session_id)
     if agent:
         remove_agent(session_id)
     _session_problems.pop(session_id, None)
+    session_row.status = "completed"
+    session_row.ended_at = datetime.utcnow()
+    db.commit()
     return {"message": "面试已结束", "session_id": session_id}
 
 
 @router.get("/problem/{session_id}")
 async def get_current_problem(
     session_id: int,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """获取当前会话的算法题目"""
+    verify_session_owner(session_id, current_user.id, db)
     if session_id in _session_problems:
         return _session_problems[session_id]
 

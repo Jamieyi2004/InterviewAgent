@@ -39,3 +39,9 @@ backend/scripts/tts_output.mp3
 
 # Core dumps
 core.*
+
+# 本地向量库（Chroma）
+backend/chroma_db/
+
+# TypeScript 构建缓存
+frontend/tsconfig.tsbuildinfo

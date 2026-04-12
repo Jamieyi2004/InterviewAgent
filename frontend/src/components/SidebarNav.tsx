@@ -100,7 +100,7 @@ export function SidebarNavGroup({ currentPath }: { currentPath: string }) {
   const links = [
     { href: "/", icon: Home, label: "首页" },
     { href: "/sessions", icon: History, label: "我的会话" },
-    { href: "/resume-analysis", icon: FileSearch, label: "简历分析" },
+    { href: "/resume-analysis?setup=1", icon: FileSearch, label: "简历分析" },
     { href: "/coaching", icon: GraduationCap, label: "面试辅导" },
     { href: "/knowledge", icon: BookOpen, label: "面试题库" },
   ];
@@ -113,7 +113,7 @@ export function SidebarNavGroup({ currentPath }: { currentPath: string }) {
           href={link.href}
           icon={link.icon}
           label={link.label}
-          active={currentPath === link.href}
+          active={currentPath === link.href.split("?")[0]}
         />
       ))}
       {/* 管理员快捷入口 */}
@@ -149,7 +149,7 @@ export function AdminSidebarNavGroup({ currentPath }: { currentPath: string }) {
           href={link.href}
           icon={link.icon}
           label={link.label}
-          active={currentPath === link.href}
+          active={currentPath === link.href.split("?")[0]}
         />
       ))}
       <SidebarDivider />

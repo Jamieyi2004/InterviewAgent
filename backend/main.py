@@ -23,6 +23,7 @@ from api.resume_analysis import router as resume_analysis_router
 from api.coaching import router as coaching_router
 from api.knowledge import router as knowledge_router
 from api.auth import router as auth_router
+from api.asr import router as asr_router
 
 # 确保新模型被导入（init_db 需要）
 import models.resume_analysis  # noqa: F401
@@ -33,10 +34,42 @@ import models.user  # noqa: F401
 logger = logging.getLogger(__name__)
 
 
+def _check_step_audio_can_import_torch() -> None:
+    """provider=step-audio 时必须在当前进程内能 import torch，否则 TTS 永远无声。"""
+    import os
+
+    try:
+        from services.tts_service import _load_tts_config
+    except Exception:
+        return
+    cfg = _load_tts_config()
+    override = (os.environ.get("TTS_PROVIDER") or "").strip()
+    provider = override if override else cfg.get("provider", "")
+    if provider != "step-audio":
+        return
+    try:
+        import torch
+
+        logger.info("TTS step-audio: 已检测到 torch %s", torch.__version__)
+    except ImportError:
+        msg = (
+            "TTS 为 step-audio，但当前 Python 无法 import torch，语音将不可用。\n"
+            "请用带 PyTorch 的 conda 环境启动后端，例如：\n"
+            "  bash backend/scripts/run_backend_step_audio.sh\n"
+            "或：conda activate stepaudio && cd backend && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000\n"
+            "勿使用未安装 torch 的 interview-agent-venv 直接跑 step-audio。"
+        )
+        logger.critical(msg)
+        raise RuntimeError(
+            "step-audio 需要 PyTorch：当前解释器无法 import torch，进程已中止。"
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：启动时初始化数据库"""
     setup_logging()
+    _check_step_audio_can_import_torch()
     t0 = time.time()
     init_db()
     logger.info("数据库表已初始化，用时 %.0f ms", (time.time() - t0) * 1000)
@@ -84,6 +117,7 @@ app.include_router(admin_router)
 app.include_router(resume_analysis_router)
 app.include_router(coaching_router)
 app.include_router(knowledge_router)
+app.include_router(asr_router)
 
 
 # ---- 根路由（健康检查）----

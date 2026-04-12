@@ -1,0 +1,42 @@
+# =============================================================================
+# InterviewAgent 后端 + 本地 Step-Audio TTS（一体化）
+# =============================================================================
+# 环境说明：
+#   - 与「仅 API + 阿里云 TTS」相比，本文件多装了 Step-Audio 推理链路上的 Python 包。
+#   - PyTorch 必须与本机 CUDA 匹配，不能用固定版本写死，因此不在此列出。
+#
+# 推荐安装顺序（在目标 conda 环境中，例如 stepaudio）：
+#   1) 安装 PyTorch / torchaudio（二选一）：
+#        - 官方指引：https://pytorch.org/get-started/locally/
+#        - 示例：pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+#   2) 安装本文件：
+#        pip install -r requirements-step-audio.txt
+#   3) 若仍报缺模块，再对照官方仓库补全：
+#        pip install -r <你的 step-audio 目录>/requirements.txt
+#
+# 系统工具（按需）：sudo apt install ffmpeg sox   # 部分音频处理会提示需要 ffmpeg
+# =============================================================================
+
+-r requirements.txt
+
+# --- 以下与 step-audio/requirements.txt 对齐（已去掉 torch / torchvision / torchaudio）---
+transformers>=4.48.3,<5
+accelerate>=1.3.0
+openai-whisper==20231117
+onnxruntime-gpu>=1.17.0
+omegaconf>=2.3.0
+librosa>=0.10.2
+sox>=1.5.0
+modelscope
+numpy>=1.26.4,<2
+six>=1.16.0
+hyperpyyaml
+conformer>=0.3.2
+diffusers
+pillow
+sentencepiece
+funasr>=1.1.3
+protobuf>=5.29.3,<6
+gradio>=5.16.0
+# 与 step-audio 中 torchaudio/soundfile 写 WAV 等路径一致
+soundfile

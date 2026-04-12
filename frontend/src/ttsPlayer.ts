@@ -1,10 +1,55 @@
-// 全局 TTS 播放器：单 Audio + 队列 + 会话/轮次归属
+// 全局 TTS 播放器：单 Audio + 按 segment_index 顺序播放
+//
+// 后端可能按句顺序发送，但本地 Step-Audio 等若将来改为并行合成，片段到达顺序可能乱序。
+// 这里用「等待连续下标」的方式，始终按 0,1,2… 顺序入播放队列。
+
+function guessAudioMime(bytes: Uint8Array): string {
+  if (bytes.length >= 12) {
+    const isRiff =
+      bytes[0] === 0x52 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x46;
+    const isWave =
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x41 &&
+      bytes[10] === 0x56 &&
+      bytes[11] === 0x45;
+    if (isRiff && isWave) {
+      return "audio/wav";
+    }
+  }
+  return "audio/mpeg";
+}
 
 let audio: HTMLAudioElement | null = null;
-let queue: Array<{ url: string; sessionId: number; roundId: string; segmentIndex: number }> = [];
+/** 已排好序、等待播放的音频 URL（FIFO） */
+let playQueue: Array<{ url: string }> = [];
 let isPlaying = false;
 let activeSessionId: number | null = null;
 let activeRoundId: string | null = null;
+/** 当前轮次下一个应从 pending 取出的 segment_index */
+let nextExpectedSegmentIndex = 0;
+/** 已收到但还不能播的片段（等更早的下标先到） */
+let pendingByIndex: Map<number, string> = new Map();
+
+function revokeUrl(url: string) {
+  if (url.startsWith("blob:")) {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function clearRoundBuffers() {
+  for (const url of pendingByIndex.values()) {
+    revokeUrl(url);
+  }
+  pendingByIndex.clear();
+  nextExpectedSegmentIndex = 0;
+  for (const item of playQueue) {
+    revokeUrl(item.url);
+  }
+  playQueue = [];
+}
 
 function ensureAudio() {
   if (!audio) {
@@ -29,20 +74,15 @@ function ensureAudio() {
 function playNext() {
   if (isPlaying) return;
   if (!activeSessionId || !activeRoundId) {
-    queue = [];
+    playQueue = [];
     return;
   }
 
-  const idx = queue.findIndex(
-    (item) => item.sessionId === activeSessionId && item.roundId === activeRoundId
-  );
-  if (idx === -1) {
-    // 当前轮已无待播片段
-    queue = queue.filter((item) => item.sessionId !== activeSessionId || item.roundId !== activeRoundId);
+  if (playQueue.length === 0) {
     return;
   }
 
-  const next = queue.splice(idx, 1)[0];
+  const next = playQueue.shift()!;
   ensureAudio();
   if (!audio) return;
 
@@ -56,22 +96,27 @@ function playNext() {
     });
 }
 
+/** 把已连续的 pending 下标移入 playQueue */
+function drainPendingToPlayQueue() {
+  while (pendingByIndex.has(nextExpectedSegmentIndex)) {
+    const url = pendingByIndex.get(nextExpectedSegmentIndex)!;
+    pendingByIndex.delete(nextExpectedSegmentIndex);
+    nextExpectedSegmentIndex += 1;
+    playQueue.push({ url });
+  }
+}
+
 export const TtsPlayer = {
   startRound(sessionId: number, roundId: string) {
     activeSessionId = sessionId;
     activeRoundId = roundId;
-    // 丢弃其他会话/轮次的残留
-    queue = queue.filter(
-      (item) => item.sessionId === activeSessionId && item.roundId === activeRoundId
-    );
-    // 如当前在播其他轮，也不中断，播完后不会再播旧轮片段
+    clearRoundBuffers();
     if (!isPlaying) playNext();
   },
 
   enqueueSegment(sessionId: number, roundId: string, segmentIndex: number, base64: string) {
     if (!activeSessionId || !activeRoundId) return;
     if (sessionId !== activeSessionId || roundId !== activeRoundId) {
-      // 旧轮/旧会话的片段直接丢弃
       return;
     }
 
@@ -79,9 +124,13 @@ export const TtsPlayer = {
       const binary = atob(base64);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "audio/mpeg" });
+      const blob = new Blob([bytes], { type: guessAudioMime(bytes) });
       const url = URL.createObjectURL(blob);
-      queue.push({ url, sessionId, roundId, segmentIndex });
+
+      const prev = pendingByIndex.get(segmentIndex);
+      if (prev) revokeUrl(prev);
+      pendingByIndex.set(segmentIndex, url);
+      drainPendingToPlayQueue();
       if (!isPlaying) playNext();
     } catch {
       // 解码失败直接忽略该片段
@@ -96,7 +145,7 @@ export const TtsPlayer = {
       }
       audio = null;
     }
-    queue = [];
+    clearRoundBuffers();
     isPlaying = false;
     activeSessionId = null;
     activeRoundId = null;

@@ -59,6 +59,8 @@ export default function InterviewPage() {
     commitStreamMessage,
   } = useInterviewStore();
 
+  const pendingVoiceMsgIdRef = useRef<string | null>(null);
+
   const CHAR_DELAY = 150;
   const FIRST_CHAR_DELAY = 3500;
   const firstCharDelayRef = useRef<NodeJS.Timeout | null>(null);
@@ -176,6 +178,8 @@ export default function InterviewPage() {
   );
 
   const currentRoundIdRef = useRef<string | null>(null);
+  const ttsEnabledRef = useRef(ttsEnabled);
+  ttsEnabledRef.current = ttsEnabled;
 
   useEffect(() => {
     if (!sessionId) {
@@ -186,8 +190,15 @@ export default function InterviewPage() {
     const ws = new InterviewWebSocket(sessionId, {
       onToken: handleToken,
       onDone: handleDone,
+      onAsrResult: (text) => {
+        const pid = pendingVoiceMsgIdRef.current;
+        if (pid) {
+          useInterviewStore.getState().updateMessage(pid, text);
+          pendingVoiceMsgIdRef.current = null;
+        }
+      },
       onTtsSegment: ({ audioBase64, segmentIndex, text, roundId }) => {
-        if (ttsEnabled && roundId) {
+        if (ttsEnabledRef.current && roundId) {
           if (currentRoundIdRef.current !== roundId) {
             currentRoundIdRef.current = roundId;
             TtsPlayer.startRound(sessionId, roundId);
@@ -204,7 +215,17 @@ export default function InterviewPage() {
         }
       },
       onFinished: handleFinished,
-      onError: handleError,
+      onError: (error) => {
+        const pid = pendingVoiceMsgIdRef.current;
+        if (pid) {
+          useInterviewStore.getState().updateMessage(
+            pid,
+            `（识别失败：${error}）`
+          );
+          pendingVoiceMsgIdRef.current = null;
+        }
+        handleError(error);
+      },
     });
 
     ws.connect();
@@ -234,6 +255,29 @@ export default function InterviewPage() {
     setStreaming(true);
     setRoundStartAt(performance.now());
     feLogger.info("round start", { contentLength: content.length });
+  };
+
+  const handleSendVoice = (audioBase64: string) => {
+    textBufferRef.current = "";
+    pendingDoneRef.current = null;
+    pendingFinishedRef.current = null;
+    stopDisplayTimer();
+
+    const id = `msg-${Date.now()}`;
+    pendingVoiceMsgIdRef.current = id;
+    addMessage({
+      id,
+      role: "candidate",
+      content: "🎤 正在识别语音…",
+      timestamp: Date.now(),
+    });
+
+    wsRef.current?.sendAudioPcmBase64(audioBase64);
+    setStreaming(true);
+    setRoundStartAt(performance.now());
+    feLogger.info("round start (voice)", {
+      audioBase64Length: audioBase64.length,
+    });
   };
 
   const handleCodeSubmit = (code: string) => {
@@ -363,6 +407,7 @@ export default function InterviewPage() {
         <div className="px-6 pb-5 pt-2">
           <ChatInput
             onSend={handleSend}
+            onSendVoice={handleSendVoice}
             disabled={isStreaming}
             placeholder={
               currentStage === "coding"

@@ -55,7 +55,7 @@
 ## 项目目录结构
 
 ```
-Interview-Agent/
+InterviewAgent/
 ├── backend/                        # 后端 (FastAPI + Python)
 │   ├── main.py                     #   应用入口, 路由注册
 │   ├── config.py                   #   配置管理

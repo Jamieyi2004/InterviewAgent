@@ -5,7 +5,7 @@ Pydantic 请求 / 响应数据模型（Schema）
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ===================== 简历相关 =====================
@@ -40,6 +40,15 @@ class ChatMessage(BaseModel):
     role: str          # interviewer / candidate
     content: str
     stage: Optional[str] = None
+
+
+# ===================== ASR 语音识别 =====================
+
+
+class ASRTranscribeResponse(BaseModel):
+    """语音转写结果"""
+    text: str = Field("", description="识别出的全文")
+    provider: str = Field("", description="实际使用的 ASR provider 名称")
 
 
 # ===================== 报告相关 =====================

@@ -175,7 +175,7 @@ export default function HomePage() {
                       if (card.action === "start") {
                         setShowSetup(true);
                       } else if (card.action === "resume") {
-                        router.push("/resume-analysis");
+                        router.push("/resume-analysis?setup=1");
                       } else if (card.action === "tips" || card.action === "faq") {
                         router.push("/knowledge");
                       }
